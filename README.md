@@ -7,7 +7,7 @@ Learn the new things you need for coding with AI assistants. This repo is used i
 2. **Use:** each file in [`postings/`](postings/) is a workflow you hand to Claude Code in one sentence:
    *"Use this md file for my project, building …"*. Claude follows it, so you don't have to remember the details.
 
-_Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2). Added Posting 02 and lessons L8–L10 on agent security._
+_Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2, gstack 1.104). Added Posting 03 and lesson L11 on deciding what's worth building._
 
 ---
 
@@ -17,6 +17,7 @@ _Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2). Added Po
 |---|---|---|---|
 | 01 | [Daily coding with Superpowers + Claude Code + your own harness](postings/01-superpowers-daily-workflow.md) | A daily workflow: spec → plan → test-first build → review → verified "done", with hooks that lock the tests and a stop for when Claude gets stuck | L1–L7 |
 | 02 | [Secure agent workstation: run Claude Code without handing over your keys](postings/02-secure-agent-workstation.md) | Sandbox with your credentials hidden, secrets in three tiers, hooks that block made-up packages and edits to the agent's own config, a plugin vetting checklist, session types, and a 10-minute self-test | L2, L4, L8–L10 |
+| 03 | [Business development with gstack: decide what's worth building before Claude builds it](postings/03-gstack-business-development.md) | YC-style office hours that test demand before code, a scope review, a dated kill line gstack checks for you, and a clean hand-off to the Posting 01 build | L1, L5, L11 |
 
 ---
 
@@ -36,6 +37,7 @@ Start with **L1**. Everything else is a way of building or supervising it.
 | [L8](#l8-the-lethal-trifecta-and-the-rule-of-two) | The lethal trifecta and the Rule of Two | **Understand deeply** (it's L1 for security) | 15 min |
 | [L9](#l9-sandbox-permissions-and-auto-mode-three-different-layers) | Sandbox, permissions and auto mode | What each one stops and what it doesn't | 15 min |
 | [L10](#l10-secrets-and-the-supply-chain) | Secrets and the supply chain | Three tiers of secrets; how packages attack you | 15 min |
+| [L11](#l11-the-evidence-loop-validate-before-you-build) | The evidence loop: validate before you build | The evidence ladder and the kill line | 15 min |
 | [Example](#worked-example-starting-a-new-project-from-zero) | **Worked example:** a new project from zero, step by step | Read once, then follow | 15 min |
 
 **The short version:** you don't need to master these tools. You need to know enough to **supervise**.
@@ -430,6 +432,46 @@ was published 3 days ago. What do you do?
 
 ---
 
+### L11. The evidence loop: validate before you build
+
+**The problem.** With an agent, a working, tested product takes days instead of months. That removes the old brake.
+You can now build the wrong thing fast and well, and a cheap build doesn't make anyone want it. Worse, the assistant you'd ask "is this a good idea?" is a yes-man: a Stanford
+study found models **affirm users about 50% more than people do** ([arXiv 2510.01395, Oct 2025](https://arxiv.org/abs/2510.01395)).
+
+**The idea.** Run the L1 feedback loop on the business, with a different sensor:
+
+| Part | Code (L1) | Business |
+|---|---|---|
+| Target | Tests pass | *"By Dec 15, 3 of 10 clinics I demo to pay $49"* |
+| Sensor | `./verify.sh` | What people **do**: pay, come back, complain when it breaks |
+| Compare outside the doer | Stop hook | A **kill line** written before you act and checked on the date |
+| Action | Edit code | The cheapest experiment: talk to N buyers, send a payment link, deliver by hand, ship a tiny wedge |
+
+**The evidence ladder** (strongest first): prepay > signed contract > paid pilot > priced letter of intent >
+unpriced LOI > praise. Waitlists, likes and "that's interesting" are not demand. Your real competitor is the
+**status quo**: the spreadsheet-and-email workaround people already live with.
+
+**What you do:** before a new product or a big feature, run gstack's `/office-hours` (Posting 03). Answer its six
+forcing questions (demand, status quo, the named human, the narrowest wedge, what surprised you watching a user,
+future-fit) and leave with a design doc or memo that ends in **KILL/CONTINUE: by <date>, if <behavior or money
+test> isn't true, change direction.** Then build the wedge with Posting 01.
+
+**Why a skill and not a chat?** A skill asks first, pushes twice on vague answers, is forbidden to hedge, and writes
+the decision down with a date. Note what it doesn't do: gstack's own test found it doesn't make Claude fix more
+bugs, and persona lines like "you are a CEO" don't make models more accurate. The value is the questions and the
+gate, not the role-play.
+
+**Check yourself:** you have 400 waitlist signups and three friends who say they'd "definitely use it". Office hours
+asks for your strongest demand evidence. What do you answer, and what's your next action?
+<details><summary>Answer</summary>Honestly: no demand evidence yet. Signups and compliments are at the bottom of the ladder. Next action is a memo, not code: for example, "send a $29 payment link to 20 people from the waitlist by Friday; KILL/CONTINUE: if fewer than 3 pay by Dec 15, change direction."</details>
+
+**Read more:** [gstack /office-hours skill](https://github.com/garrytan/gstack/tree/main/office-hours) ·
+[gstack's own eval: no gain on fix rate](https://github.com/garrytan/gstack-evals/blob/main/wiki/board/2026-11-19-geva-540-skill-pack-h2h-results/README.md) ·
+[Sycophantic AI (Stanford)](https://arxiv.org/abs/2510.01395) ·
+[Founders asking a helpful machine to judge their ideas (Inc.)](https://www.inc.com/diana-bocco/founders-ai-prompting-business-ideas-confirmation-bias/91394909)
+
+---
+
 ## Worked example: starting a new project from zero
 
 Say you start a new **habit-tracker web app** (TypeScript, a small API plus a web UI). Here is how every lesson applies,
@@ -438,6 +480,12 @@ in order. You type about ten short messages. Claude does the rest.
 **Day 0, once per machine: secure the workstation (≈1 hour).** Give Claude
 [Posting 02](postings/02-secure-agent-workstation.md) and say *"Use this md file to secure my machine."* Approve the
 sandbox and credential settings, then run its self-test. Every later project inherits this (L8–L10).
+
+**Day 0, per idea: is it worth building? (≈45 min).** Give Claude [Posting 03](postings/03-gstack-business-development.md) and run
+`/office-hours`. Say you've talked to four people who track habits in a spreadsheet and none has paid for an app.
+It pushes back, picks the narrowest wedge ("a streak reminder for one habit, $3/month"), and writes
+`docs/designs/habit-tracker.md` ending in *KILL/CONTINUE: by Jan 31, if 10 people haven't paid, change direction.*
+The build below starts from that doc (L11).
 
 **Day 1, morning: kickoff and harness (≈20 min)**
 
@@ -508,6 +556,11 @@ sandbox and credential settings, then run its self-test. Every later project inh
 - **Slopsquatting:** registering a package name that AI models tend to invent, so that installs of the made-up name get malware.
 - **Install script:** code a package runs automatically when it's installed. The main way npm worms spread.
 - **Minimum release age:** a package manager setting that refuses versions published less than N days ago.
+- **Office hours (`/office-hours`):** gstack's skill that interviews you like a YC partner about demand before any code, and writes a design doc or decision memo.
+- **Kill line (KILL/CONTINUE):** a dated test written before you build: "by <date>, if <behavior or money test> isn't true, change direction."
+- **Wedge:** the smallest version of a product that one specific person would pay for this week.
+- **Evidence ladder:** how much a demand signal counts: prepay > signed contract > paid pilot > priced LOI > unpriced LOI > praise.
+- **Sycophancy:** a model agreeing with and flattering the user instead of judging honestly.
 - **MCP server:** a plugin that gives the agent new tools (GitHub, a browser, a database). Code running with your permissions; its output is untrusted input.
 
 ---
