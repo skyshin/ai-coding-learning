@@ -7,7 +7,7 @@ Learn the new things you need for coding with AI assistants. This repo is used i
 2. **Use:** each file in [`postings/`](postings/) is a workflow you hand to Claude Code in one sentence:
    *"Use this md file for my project, building …"*. Claude follows it, so you don't have to remember the details.
 
-_Last updated: November 2026 (Claude Code 2.1.x, Superpowers v7.0.2)._
+_Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2). Added Posting 02 and lessons L8–L10 on agent security._
 
 ---
 
@@ -16,6 +16,7 @@ _Last updated: November 2026 (Claude Code 2.1.x, Superpowers v7.0.2)._
 | # | Posting | What it gives you | Lessons it uses |
 |---|---|---|---|
 | 01 | [Daily coding with Superpowers + Claude Code + your own harness](postings/01-superpowers-daily-workflow.md) | A daily workflow: spec → plan → test-first build → review → verified "done", with hooks that lock the tests and a stop for when Claude gets stuck | L1–L7 |
+| 02 | [Secure agent workstation: run Claude Code without handing over your keys](postings/02-secure-agent-workstation.md) | Sandbox with your credentials hidden, secrets in three tiers, hooks that block made-up packages and edits to the agent's own config, a plugin vetting checklist, session types, and a 10-minute self-test | L2, L4, L8–L10 |
 
 ---
 
@@ -32,6 +33,9 @@ Start with **L1**. Everything else is a way of building or supervising it.
 | [L5](#l5-context-management) | Context management | A few habits | 10 min |
 | [L6](#l6-reviewing-ai-written-code-and-tests) | Reviewing AI-written code and tests | **Practice on every PR** | ongoing |
 | [L7](#l7-why-prompting-tricks-matter-much-less-now) | Why prompting tricks matter much less now | Unlearn old habits | 5 min |
+| [L8](#l8-the-lethal-trifecta-and-the-rule-of-two) | The lethal trifecta and the Rule of Two | **Understand deeply** (it's L1 for security) | 15 min |
+| [L9](#l9-sandbox-permissions-and-auto-mode-three-different-layers) | Sandbox, permissions and auto mode | What each one stops and what it doesn't | 15 min |
+| [L10](#l10-secrets-and-the-supply-chain) | Secrets and the supply chain | Three tiers of secrets; how packages attack you | 15 min |
 | [Example](#worked-example-starting-a-new-project-from-zero) | **Worked example:** a new project from zero, step by step | Read once, then follow | 15 min |
 
 **The short version:** you don't need to master these tools. You need to know enough to **supervise**.
@@ -162,6 +166,8 @@ walk away. Only start one **after** you've approved a plan and `verify.sh` exist
 2. **The condition is the sensor:** say "`./verify.sh` exits 0", not "the feature works".
 3. **Branch only.** The loop never touches `main`.
 4. **Same failure 3 times → stop and call a human.**
+5. **No loop with untrusted input and real secrets together.** A loop removes the human who would notice a hijack.
+   Run loops in a normal build session, not one that read GitHub issues, error reports or web pages (L8).
 
 **Read more:** [Agent loops: Ralph, /loop, /goal, headless](https://agentatlas.dev/guides/agent-loops-ralph-loop-ai-coding-agents/) ·
 [From Ralph Wiggum to /loop](https://paddo.dev/blog/claude-code-loop-ralph-wiggum-evolution/) ·
@@ -307,10 +313,131 @@ Those compound across every session. A clever prompt helps once.
 
 ---
 
+### L8. The lethal trifecta and the Rule of Two
+
+**The problem.** A language model can't reliably tell *your* instructions from instructions hidden in text it reads.
+So any text an attacker can write, like a GitHub issue, an error report, a web page or a README inside a dependency,
+can steer your agent. This is **prompt injection**. It's not hypothetical: in 2026 fake Sentry error reports made
+Claude Code, Cursor and Codex leak credentials in 85% of tests ([CSA](https://labs.cloudsecurityalliance.org/research/csa-research-note-agentjacking-mcp-sentry-injection-20260612/)),
+and PR titles made AI agents in CI print their API keys.
+
+**Why filters don't fix it.** In 2025, researchers from OpenAI, Anthropic and Google DeepMind attacked 12 published
+defenses. Adaptive attacks beat most of them more than 90% of the time, and human red-teamers beat all of them
+([summary](https://simonwillison.net/2025/Nov/2/new-prompt-injection-papers/)). In web security, 95% blocked is a
+failing grade.
+
+**The idea.** Stop asking "can the agent be tricked?" (yes) and ask "what could a tricked agent *do*?"
+Simon Willison's **lethal trifecta** ([Jun 2025](https://simonwillison.net/2025/jun/16/the-lethal-trifecta/)): trouble needs all three of
+
+| | Capability | Coding example |
+|---|---|---|
+| **A** | Reads untrusted input | Issues, error reports, web pages, MCP tool output |
+| **B** | Has sensitive access | `~/.ssh`, cloud keys, `.env`, production database |
+| **C** | Can change things or send data out | Shell commands, `git push`, network access |
+
+Meta's **Rule of Two** turns it into a rule you can follow: *one session gets at most two of A, B and C; if it truly
+needs all three, a human approves the risky steps* ([Meta, Oct 2025](https://ai.meta.com/blog/practical-ai-agent-security/)).
+A coding agent almost always has C. So in practice: **keep secrets out of its reach** (Posting 02's default), and
+read outside text in a **separate triage session with no secrets** that writes a notes file you read.
+
+**What you do:** before a session that reads outside text, ask "does this session hold anything worth stealing?"
+If yes, split the work (Posting 02 §4). Production changes are never an agent job: Claude writes the script, you run it.
+
+**Check yourself:** you want Claude to read 20 new GitHub issues and fix the easy ones, in one session, using a
+GitHub token that can push. Which of A, B, C does that session have, and what would you change?
+<details><summary>Answer</summary>All three: issues are untrusted input (A), the token is sensitive access (B), pushing changes things (C). Split it: a triage session with a read-only token summarizes the issues into a file; you read it; a build session without outside text does the fixes and you push.</details>
+
+**Read more:** [The lethal trifecta (Willison)](https://simonwillison.net/2025/jun/16/the-lethal-trifecta/) ·
+[Agents Rule of Two (Meta)](https://ai.meta.com/blog/practical-ai-agent-security/) ·
+[Agentic AI and Security (Martin Fowler's site)](https://martinfowler.com/articles/agentic-ai-security.html) ·
+[OWASP Top 10 for Agentic Applications](https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026)
+
+---
+
+### L9. Sandbox, permissions and auto mode: three different layers
+
+**The problem.** People hear "Claude Code has a sandbox and auto mode" and assume they're protected. Each layer
+stops something different, and each has a gap.
+
+| Layer | What it is | What it stops | What it doesn't stop |
+|---|---|---|---|
+| **Permissions** (`allow` / `ask` / `deny` in settings) | Rules about which tools and commands Claude may use | Exactly what you list. **Deny rules hold in every mode** | Anything you didn't list; a `Read` deny can be dodged by a Python one-liner in Bash |
+| **Sandbox** (`/sandbox`, off until you enable it) | The OS limits what Bash commands can touch: files, network | Commands reaching hosts you didn't allow, writing outside the project | By default it can **read almost your whole machine**, including `~/.aws` and `~/.ssh`, until you add `sandbox.credentials` denies. It covers Bash only, not MCP servers |
+| **Auto mode** (default since Aug 2026 on Pro, Max, Team) | A classifier judges risky actions before they run | Most overeager mistakes; humans approve 93–97% of prompts, so it beats tired humans | Its own miss rate is 17% on real overeager actions; **file edits inside the project skip it**, so insecure code changes aren't checked ([Anthropic](https://www.anthropic.com/engineering/claude-code-auto-mode), [Backslash](https://www.backslash.security/blog/claude-code-auto-mode-catches-a-lot-but-not-everything)) |
+
+**The idea: defense in depth.** Use all three, plus hooks (L2) for the things you need guaranteed:
+- **Sandbox** with your credential files and token env vars denied, and a short network allowlist.
+- **Permissions:** deny reads of `.env` files and secret folders, deny force-push and publishing, ask before `git push`.
+  Allow only narrow commands: `Bash(git *)` also allows `git push --force`.
+- **Hooks** for what auto mode skips: block edits to `.claude/`, `.mcp.json` and CI files; check packages before install.
+- **Auto mode** on top, to catch the mistakes you didn't think of.
+
+**What you do:** ask Claude to apply Posting 02 §3, read the diff, then run the **self-test** (Posting 02 §5). If Claude
+can print your `~/.aws/credentials`, a layer is missing.
+
+**Check yourself:** auto mode is on. Is that enough to stop Claude from disabling certificate checks in your HTTP client code?
+<details><summary>Answer</summary>No. File edits inside the project skip the classifier. Insecure code changes are caught by review and scanners (L6, /security-review, Semgrep), not by auto mode.</details>
+
+**Read more:** [Claude Code sandboxing docs](https://code.claude.com/docs/en/sandboxing) ·
+[Auto mode, how it works (Anthropic)](https://www.anthropic.com/engineering/claude-code-auto-mode) ·
+[Sandbox ladder and credentials (Krupa)](https://bartlomiejkrupa.dev/articles/claude-code-security-sandboxing-2026/)
+
+---
+
+### L10. Secrets and the supply chain
+
+**The problem, part 1: secrets.** 28.65 million secrets leaked on public GitHub in 2025, up 34%. Commits co-written by
+Claude Code leaked at 3.2% versus a 1.5% baseline, and MCP config files alone exposed 24,008 secrets because setup
+guides tell you to paste keys into config ([GitGuardian, Mar 2026](https://blog.gitguardian.com/the-state-of-secrets-sprawl-2026/)).
+And an agent that *finds* a powerful key may use it: in April 2026 an agent used a token it found to delete a
+production volume and its backups in about 9 seconds.
+
+**The idea: three tiers.** Decide for each secret where it lives:
+1. **Never on your machine:** production database, live payment keys, cloud admin, package publish tokens. They live in
+   your hosting provider's or CI's secret store. The agent can't misuse what isn't there.
+2. **On the machine but unreadable by the agent:** SSH keys, cloud CLI logins, personal `.env.local`. Denied by sandbox and permissions.
+3. **OK for the agent:** dev database, payment test-mode keys, an API key with a spending cap. Assume it could leak; keep it cheap to rotate.
+
+Plus: keys in environment variables, never in committed files; expiry dates on every token; push protection and `gitleaks`
+to catch mistakes. **When in doubt, rotate first and investigate second.**
+
+**The problem, part 2: packages.** Two attacks hit AI-assisted developers:
+- **Slopsquatting:** models invent package names (4–6% of the time for frontier models in a May 2026 study), and attackers
+  register those names with malware inside ([CSA](https://labs.cloudsecurityalliance.org/research/csa-research-note-slopsquatting-ai-supply-chain-20260419-csa/)).
+- **Worms:** Shai-Hulud (2025) and Mini Shai-Hulud (May 2026) used **install scripts** to steal tokens from developer
+  machines and CI, then republished themselves into more packages ([CSA](https://labs.cloudsecurityalliance.org/research/csa-research-note-mini-shai-hulud-supply-chain-sigstore-2026/)).
+
+**The idea: slow down and don't run strangers' code at install time.**
+- An **install gate** hook checks that a package exists and isn't brand new before Claude installs it.
+- A **minimum release age** (pnpm `minimumReleaseAge`, Bun, Yarn): new versions wait a day or more, by which time most
+  poisoned versions have been pulled.
+- **Block dependency install scripts** (pnpm and Bun do this by default; npm needs `ignore-scripts`).
+- **Commit the lockfile** and look at lockfile changes in PRs.
+- **Plugins, skills and MCP servers are packages too.** 76 malicious skills were found in one public marketplace in
+  Feb 2026 ([Snyk](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/)). Read a skill before installing it.
+
+**What you do:** sort your project's secrets into the three tiers once (Posting 02 §3.2), switch to pnpm or Bun with a
+release-age setting, and keep the install gate hook on.
+
+**Check yourself:** Claude suggests `npm install fast-json-sanitizer-pro` to fix a bug. The install gate says the package
+was published 3 days ago. What do you do?
+<details><summary>Answer</summary>Don't approve it yet. Ask Claude which library's official docs recommend it. A 3-day-old package with a plausible name is exactly what slopsquatting looks like. Use a well-known package, or write the small function yourself.</details>
+
+**Read more:** [State of Secrets Sprawl 2026 (GitGuardian)](https://blog.gitguardian.com/the-state-of-secrets-sprawl-2026/) ·
+[pnpm on npm supply chain security](https://pnpm.io/blog/2025/12/05/newsroom-npm-supply-chain-security) ·
+[GitHub: preparing for the next malware campaign](https://github.blog/2025-12-20-strengthening-supply-chain-security-preparing-for-the-next-malware-campaign/) ·
+[ToxicSkills (Snyk)](https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/)
+
+---
+
 ## Worked example: starting a new project from zero
 
 Say you start a new **habit-tracker web app** (TypeScript, a small API plus a web UI). Here is how every lesson applies,
 in order. You type about ten short messages. Claude does the rest.
+
+**Day 0, once per machine: secure the workstation (≈1 hour).** Give Claude
+[Posting 02](postings/02-secure-agent-workstation.md) and say *"Use this md file to secure my machine."* Approve the
+sandbox and credential settings, then run its self-test. Every later project inherits this (L8–L10).
 
 **Day 1, morning: kickoff and harness (≈20 min)**
 
@@ -373,6 +500,15 @@ in order. You type about ten short messages. Claude does the rest.
 - **Context engineering:** choosing what goes into the model's context (files, tool output, history), not just wording the prompt.
 - **Test gaming / reward hacking:** making checks pass without solving the task (editing tests, hardcoding expected inputs, overriding `==`).
 - **Ultracode / dynamic workflows:** Claude Code mode that runs many subagents in parallel through a generated script.
+- **Prompt injection:** hidden instructions in text the agent reads (an issue, a web page, an error report) that steer it.
+- **Lethal trifecta:** untrusted input + sensitive access + a way to change things or send data out, in one agent. Together they let an attacker steal data.
+- **Rule of Two:** give one agent session at most two of those three; if it needs all three, a human approves the risky steps.
+- **Sandbox:** the operating system limiting which files and network hosts a command can reach. In Claude Code it covers Bash commands.
+- **Auto mode:** Claude Code's default permission mode (Pro, Max, Team) where a classifier, not you, approves most actions. Helpful, not a security boundary.
+- **Slopsquatting:** registering a package name that AI models tend to invent, so that installs of the made-up name get malware.
+- **Install script:** code a package runs automatically when it's installed. The main way npm worms spread.
+- **Minimum release age:** a package manager setting that refuses versions published less than N days ago.
+- **MCP server:** a plugin that gives the agent new tools (GitHub, a browser, a database). Code running with your permissions; its output is untrusted input.
 
 ---
 
