@@ -29,6 +29,30 @@ So you don't choose one of the three. They are three layers, and each does a dif
 
 The rest of this file shows how to wire them together for daily work.
 
+### 1.1 The idea that ties it together: a feedback loop outside the agent
+
+The most common failure of coding agents is the agent saying "done" while the real checks still fail.
+The fix is a classic **feedback loop** (control-loop) with four parts: **target → sensor → compare → act**,
+repeated until the error is zero. Mapped to coding:
+
+| Loop part | In your repo | Who owns it |
+|---|---|---|
+| **Target** (setpoint) | Executable acceptance checks: tests plus `verify.sh`. Written by a human or approved spec, machine-checkable | You and the spec (Superpowers brainstorming/writing-plans) |
+| **Sensor** | One command whose exit code is the truth: `./verify.sh` → `0` pass / non-zero fail | Your project harness |
+| **Compare / "is it done?"** | Decided **outside** the agent: a Stop hook or `/goal` evaluator runs the sensor. The agent's own opinion doesn't count | Your project harness |
+| **Act** | The agent edits code to shrink the failure | Claude + Superpowers (TDD, debugging) |
+| **Safety** | Iteration cap plus **NEEDS-HUMAN**: if the *same* failure repeats 3 times, stop and call a person | Your project harness and loop flags |
+
+How the three buzzwords relate:
+- **SDD (spec-driven development)**, which is what Superpowers' brainstorming → spec → plan does, **sets the target**. It decides what "right" means.
+- **The feedback loop is the design.** It measures the result against the target, shrinks the error, and decides when to stop.
+- **Harness engineering is the construction work** that makes the design actually run: `CLAUDE.md`, `verify.sh`, and hooks
+  that *lock the target* and *block finishing without a passing check*.
+
+Superpowers alone is the "act well" part plus a disciplined target. It still runs *inside* the agent.
+`verification-before-completion` is an instruction, and instructions can be skipped. The outer loop in §3.3 makes "done"
+mechanical. **Use both.**
+
 ---
 
 ## 2. Is this still worth it on the latest Claude Code? (verdict)
@@ -81,9 +105,10 @@ Create or extend `CLAUDE.md`. `CLAUDE.md` **overrides** Superpowers skills, so t
 # CLAUDE.md
 
 ## Verify commands (the single source of truth for "done")
-- Fast check:  `make check`      # lint + typecheck + unit tests, < 2 min
-- Full check:  `make test-all`   # integration tests
-A task is done only when the fast check passes and you have read its output.
+- Sensor:      `./verify.sh`     # lint + typecheck + unit + locked acceptance tests; exit 0 = done
+- Full check:  `make test-all`   # whole suite, also run in CI
+A task is done only when ./verify.sh exits 0. A Stop hook enforces this (see §3.3).
+tests/acceptance/ and verify.sh are the locked target: never edit them. If the target looks wrong, stop and ask me.
 
 ## Superpowers settings for this repo
 - Execution: use executing-plans (inline) by default. Use subagent-driven-development only
@@ -94,15 +119,78 @@ A task is done only when the fast check passes and you have read its output.
 
 ## Hard rules
 - Never delete, skip or weaken a test to make it pass.
+- If NEEDS-HUMAN.md appears, stop and summarize the blocker. Don't keep trying.
 - Never push to main. Work in a worktree branch; finish with a PR.
 - <domain rules: e.g. "all money values are integer cents", "no new dependencies without asking">
 ```
 
-### 3.3 Add hooks for anything that must *never* happen
-Instructions can be ignored. Hooks can't. Add these in `.claude/settings.json`, or ask Claude: "add a hook that ...".
-- **PreToolUse**: block `git push` to `main`, and block edits to `migrations/` or to secrets files.
-- **PostToolUse** on Edit/Write: run the formatter and linter on the changed file.
-- **Stop** (optional): run `make check` and report failures back, so "done" is checked by a machine, not by the model.
+### 3.3 Build the outer feedback loop: sensor + locked target + Stop gate
+Instructions can be ignored. Hooks can't. This is the construction work from §1.1. Ask Claude to set it up
+from this section, then read what it wrote.
+
+**(a) Sensor: `verify.sh`.** One command, and its exit code is the truth. Put the acceptance tests for the current
+feature in a folder the agent may not edit (e.g. `tests/acceptance/`).
+```bash
+#!/usr/bin/env bash
+# verify.sh: exit 0 = target met, anything else = not met
+set -euo pipefail
+make lint
+make typecheck
+make test                      # unit tests (the agent writes these during TDD)
+make test-acceptance           # tests/acceptance/: the locked target (e.g. Playwright for a web app)
+```
+
+**(b) Lock the target: `PreToolUse` hook.** The agent must not "pass" by editing the target.
+`.claude/hooks/lock-target.sh` blocks edits to the acceptance tests, `verify.sh` and the hook files themselves.
+Exit code 2 blocks the call and sends the message back to Claude.
+```bash
+#!/usr/bin/env bash
+f=$(jq -r '.tool_input.file_path // empty')
+case "$f" in
+  *tests/acceptance/*|*verify.sh|*.claude/hooks/*|*.claude/settings.json)
+    echo "Target is locked: $f. Fix the code, not the check. If the target itself is wrong, stop and ask the human." >&2
+    exit 2 ;;
+esac
+exit 0
+```
+
+**(c) Decide "done" outside the agent: `Stop` hook with a NEEDS-HUMAN escape.**
+`.claude/hooks/stop-gate.sh` runs the sensor whenever Claude tries to finish. On failure it blocks the stop and feeds
+the error back. If the **same failure fingerprint repeats 3 times**, or after 10 attempts in total, it lets Claude stop
+and writes `NEEDS-HUMAN.md` instead of looping forever.
+```bash
+#!/usr/bin/env bash
+state=.claude/loop-state; mkdir -p "$state"
+if out=$(./verify.sh 2>&1); then rm -rf "$state"; exit 0; fi        # target met: allow stop
+
+fp=$(echo "$out" | grep -Ei 'fail|error' | sed 's/[0-9]\+/N/g' | sort -u | sha1sum | cut -c1-12)
+n_same=$(( $(cat "$state/$fp" 2>/dev/null || echo 0) + 1 )); echo $n_same > "$state/$fp"
+n_all=$(( $(cat "$state/total" 2>/dev/null || echo 0) + 1 )); echo $n_all > "$state/total"
+
+if [ "$n_same" -ge 3 ] || [ "$n_all" -ge 10 ]; then
+  { echo "# NEEDS-HUMAN"; echo "Same failure ${n_same}x (total ${n_all} attempts). Last output:"; echo "$out" | tail -40 | sed 's/^/    /'; } > NEEDS-HUMAN.md
+  exit 0                                                               # safety: stop and call a person
+fi
+jq -n --arg r "verify.sh failed (attempt $n_all, this failure ${n_same}x). Fix it before finishing:
+$(echo "$out" | tail -40)" '{decision:"block", reason:$r}'           # keep going
+```
+
+**(d) Wire it up** in `.claude/settings.json` (`chmod +x` the scripts):
+```json
+{
+  "hooks": {
+    "PreToolUse": [{ "matcher": "Edit|Write|MultiEdit",
+                     "hooks": [{ "type": "command", "command": ".claude/hooks/lock-target.sh" }] }],
+    "Stop":       [{ "hooks": [{ "type": "command", "command": ".claude/hooks/stop-gate.sh" }] }]
+  }
+}
+```
+Also worth adding: a `PreToolUse` hook on `Bash` that blocks `git push` to `main`, and a `PostToolUse`
+formatter on Edit/Write. Add `.claude/loop-state/` and `NEEDS-HUMAN.md` to `.gitignore`.
+
+> **Tip:** keep the Stop gate fast (aim for < 2–3 min). If acceptance tests are slow, run only the current feature's
+> tests in `verify.sh` and leave the full suite to CI. When you work interactively on tiny changes, you can disable
+> the Stop gate with `/hooks`, or have the script exit 0 when no file changed since the last pass.
 
 Rule of thumb from harness engineering: **every time the agent makes a mistake, add a rule, test or hook so it
 can't make that mistake again** (Mitchell Hashimoto's framing, via [Faros](https://www.faros.ai/blog/harness-engineering)).
@@ -120,7 +208,7 @@ can't make that mistake again** (Mitchell Hashimoto's framing, via [Faros](https
 | 3. Plan | — (automatic) | **writing-plans**: plan file with exact files, interfaces and tests, in small tasks | **Read the plan.** This is the cheapest place to fix mistakes. |
 | 4. Build | "Execute the plan." | **executing-plans** (inline) or **subagent-driven-development**; **test-driven-development** inside each task: failing test first | Stay nearby, or hand off to a loop (Track C) |
 | 5. Review | — (automatic) | **requesting-code-review** between tasks; critical issues block | Skim severity-ranked findings |
-| 6. Prove | — (automatic) | **verification-before-completion**: runs your `make check`, reads output, no "done" without evidence | — |
+| 6. Prove | — (automatic) | **verification-before-completion** runs `./verify.sh`; the **Stop gate** (§3.3) re-checks it outside the agent | Only step in if `NEEDS-HUMAN.md` appears |
 | 7. Finish | — | **finishing-a-development-branch**: tests, then merge / PR / keep / discard, and cleans up the worktree | Choose **PR**, review the diff |
 
 **Your attention goes to three gates: spec approval (1), plan review (3), PR review (7).** Everything between
@@ -132,7 +220,8 @@ No fix comes before the root cause, and after 3 failed fixes it questions the de
 and verification. Use the full Track A only if the fix turns into a redesign.
 
 ### Track C: hand a finished plan to a loop (go do something else)
-Loops are only safe **after** step 3, once a plan and a machine-checkable definition of done exist.
+Loops are only safe **after** step 3, once a plan, a locked target and the Stop gate (§3.3) exist.
+With the Stop gate in place, even a normal session is already an outer feedback loop. The tools below just keep it going longer.
 Pick the lightest loop that fits:
 
 | Need | Use | Example |
@@ -145,12 +234,14 @@ Loop rules. Each one prevents a known failure mode ([agentatlas](https://agentat
 [loop engineering guide](https://blakecrosley.com/guides/loop-engineering), [paddo](https://paddo.dev/blog/claude-code-loop-ralph-wiggum-evolution/)):
 1. **Always cap it**: `--max-iterations`, `--max-turns` or `--max-budget-usd`. Unlimited is the default, and that's a trap.
 2. **The plan file is the memory.** Each iteration reads the plan and `git log`, does *one* task, and checks it off.
-3. **The doer doesn't grade itself.** "Done" = your verify command exits 0, or `/goal`'s evaluator says so.
+3. **The doer doesn't grade itself.** "Done" = `./verify.sh` exits 0, checked by the Stop hook or `/goal`'s evaluator.
+   Phrase `/goal` conditions as *"./verify.sh exits 0"* so the evaluator relies on the sensor, not on reading the code.
 4. **Branch only.** Loops write to the worktree branch and finish with a PR, never to `main`.
-5. **Tests are read-only to the loop.** Back this with the Hard rules in `CLAUDE.md`, plus a hook if needed.
+5. **The target is read-only to the loop.** The `PreToolUse` lock hook enforces it, not just `CLAUDE.md`.
+6. **Same failure 3× → NEEDS-HUMAN.** Repeating the same error means the agent is stuck or the target is wrong. Escalate, don't burn tokens.
 
 ### Track D: small stuff (skip Superpowers)
-Say *"Quick fix, skip the workflow: <change>."* Claude edits, runs the fast check, and shows the output. Done.
+Say *"Quick fix, skip the workflow: <change>."* Claude edits, and the Stop gate still runs `./verify.sh`. Done.
 
 ---
 
@@ -158,16 +249,17 @@ Say *"Quick fix, skip the workflow: <change>."* Claude edits, runs the fast chec
 
 When the user gives you this file with a project description:
 1. **Check setup.** Is Superpowers installed (is the `using-superpowers` skill available)? If not, tell the user the
-   install command in §3.1 and wait. Does `CLAUDE.md` define verify commands? If not, propose a `CLAUDE.md` based on
-   §3.2 tailored to this repo (detect its test, lint and build commands) and ask before writing it.
+   install command in §3.1 and wait. Does the repo have `verify.sh`, the lock hook and the Stop gate (§3.3), and does
+   `CLAUDE.md` point to them (§3.2)? If not, propose them tailored to this repo (detect its test, lint and build
+   commands, and ask the user which acceptance checks form the target), and ask before writing them.
 2. **Classify the request**: Track A (feature / multi-file), B (bug), C (an approved plan exists and the user wants it run
    unattended), or D (small edit). State the track in one line. The user can override it.
 3. **Track A/B**: follow the Superpowers skills in order. Stop at the three gates (spec, plan, PR) for explicit approval.
    Default to **inline executing-plans**. Use subagent-driven-development only if `CLAUDE.md` or the user says so.
 4. **Track C**: propose the exact `/goal` or `/ralph-loop` command with a cap and a machine-checkable condition
    pointing at the plan file. Don't start an uncapped loop.
-5. **Always**: never claim done without running the verify command and quoting its result. Never modify tests to
-   pass. Never push to main. When you hit a mistake you could have been prevented from making, suggest the `CLAUDE.md`
+5. **Always**: never claim done without running `./verify.sh` and quoting its result. Never edit the locked target.
+   If the same failure repeats 3 times, stop, write `NEEDS-HUMAN.md` and ask the user. Never push to main. When you hit a mistake you could have been prevented from making, suggest the `CLAUDE.md`
    rule or hook that would prevent it next time.
 
 ---
@@ -179,6 +271,7 @@ Is it < ~30 lines / docs only?            → Track D (no Superpowers)
 Is it a bug with a reproduction?          → Track B (systematic-debugging)
 Is it a feature / multi-file change?      → Track A (full flow, 3 gates)
 Plan approved & I want to walk away?      → Track C (/goal or ralph-loop, capped)
+Same failure 3x / NEEDS-HUMAN.md?        → Human looks: is the code stuck, or is the target wrong?
 Did the agent make the same mistake twice? → Add a CLAUDE.md rule, test or hook (harness engineering)
 ```
 
@@ -196,3 +289,5 @@ Did the agent make the same mistake twice? → Add a CLAUDE.md rule, test or hoo
 - Agent loops: Ralph, /loop, /goal, headless (reviewed Oct 2026): https://agentatlas.dev/guides/agent-loops-ralph-loop-ai-coding-agents/
 - "From Ralph Wiggum to /loop" (Mar/Jun 2026): https://paddo.dev/blog/claude-code-loop-ralph-wiggum-evolution/
 - Loop engineering guide (Aug/Oct 2026): https://blakecrosley.com/guides/loop-engineering
+- Claude Code hooks reference (PreToolUse / Stop, exit code 2, `decision: "block"`): https://code.claude.com/docs/en/hooks
+- Video (Korean): "피드백 루프, 어떻게 만들까? SDD가 만들어 주나, 하네스와는 뭐가 다른가" (feedback loop = target/sensor/compare/act; SDD sets the target, harness builds it): https://www.youtube.com/watch?v=hvrdnm0Hu10
