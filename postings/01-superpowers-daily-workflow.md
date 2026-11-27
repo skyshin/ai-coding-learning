@@ -109,6 +109,25 @@ plus *"use this md file for my project, building …"*. Claude checks that the p
 proposes what's missing, and runs the right track. You only need to know the **three gates** (approve spec, approve
 plan, review PR) and what to do when **`NEEDS-HUMAN.md`** appears. Everything else is automated.
 
+### 2.2 What do I actually need to learn?
+
+Not four frameworks. **One idea and three habits.** The tools are things you install or copy once.
+
+| | What | How much to learn |
+|---|---|---|
+| **The idea** | **Feedback loop** (§1.1): a checkable target, a sensor, and a judge outside the agent | Understand it well. Superpowers, harness and loops are all just ways to build it |
+| Habit 1 | **Write the target**: say what "done" means as checks (`verify.sh`, acceptance tests, a spec you approve) | **This is the real skill.** Practice it on every task |
+| Habit 2 | **Review at the gates**: spec, plan, PR, and `NEEDS-HUMAN.md` | Read critically; don't rubber-stamp |
+| Habit 3 | **Fix the harness, not the prompt**: when Claude repeats a mistake, add a `CLAUDE.md` rule, test or hook | Small, ongoing |
+| Superpowers | Install it (§3.1) | Just the track names and the 3 gates. You don't need to learn the skills one by one |
+| Harness engineering | Copy §3.2–3.3 once per repo | Enough to read and tweak `CLAUDE.md` and the two hooks |
+| Loops | `/goal` + a cap + `./verify.sh` | One command. Learn ralph and Ultracode only when a task needs them |
+| **Context engineering** (the "what else") | Keep `CLAUDE.md` short, `/clear` between tasks, put long-lived knowledge in files (specs, plans), not chat | A little. It's why sessions stay sharp |
+| **Permissions / safety** (the other "what else") | Work in branches or worktrees, keep the hooks that block pushes to `main`, don't hand loops credentials they don't need | A little, once |
+
+Skip for now: agent teams, custom dynamic workflows, writing your own skills or plugins, MCP server authoring.
+Come back to them when a concrete task demands it.
+
 ---
 
 ## 3. One-time setup (≈10 minutes per project)
@@ -305,15 +324,6 @@ Did the agent make the same mistake twice? → Add a CLAUDE.md rule, test or hoo
 
 ## Related videos (2026)
 
-Korean:
-- 피드백 루프, 어떻게 만들까? SDD가 만들어 주나, 하네스와는 뭐가 다른가: https://www.youtube.com/watch?v=hvrdnm0Hu10 (the basis for §1.1 and §3.3)
-- 하네스, 루프, 그래프 — AI 코딩 용어가 6주마다 바뀌는 진짜 이유: https://www.youtube.com/watch?v=HxdYO_vo32A
-- 하네스·루프·그래프 엔지니어링?: https://www.youtube.com/watch?v=uKbw2Lfn3wI
-- 하네스 엔지니어링, 9달러 vs 200달러의 비밀 (클로드 코드): https://www.youtube.com/watch?v=6cr4PeilKJk
-- 클로드 코드 공식 플러그인 4개로 토큰 절약 끝 (하네스 실무 포함): https://www.youtube.com/watch?v=L94yAQR9VvA
-- 하네스 엔지니어링 — gstack으로 Claude Code와 Codex에게 제대로 일시키는 법: https://www.youtube.com/watch?v=PeRUUFHvKq0
-
-English:
 - Harness engineering beyond skills: Using sensors to keep your coding agent in check: https://www.youtube.com/watch?v=uLWOLmeHOSE
 - Why Your Coding Agents Need a Harness, Not a Prompt: https://www.youtube.com/watch?v=bUtAGFXPc3A
 - Harness Engineering: What Separates Top Agentic Engineers Right Now: https://www.youtube.com/watch?v=ulNsa0sD8N0
@@ -337,4 +347,4 @@ English:
 - Ultracode / dynamic workflows (Sep–Nov 2026): https://claudefa.st/blog/guide/development/ultracode, https://agentsroom.dev/blog/what-is-ultracode-in-claude-code
 - "Claude Code Superpowers: What It Is and Whether It's Worth It" (Sep 2026): https://agentskit.co/blog/claude-code-superpowers
 - Claude Code hooks reference (PreToolUse / Stop, exit code 2, `decision: "block"`): https://code.claude.com/docs/en/hooks
-- Video (Korean): "피드백 루프, 어떻게 만들까? SDD가 만들어 주나, 하네스와는 뭐가 다른가" (feedback loop = target/sensor/compare/act; SDD sets the target, harness builds it): https://www.youtube.com/watch?v=hvrdnm0Hu10
+- Video: "How do you build a feedback loop? Does SDD give you one, and how is it different from a harness?" (in Korean; basis for §1.1 and §3.3): https://www.youtube.com/watch?v=hvrdnm0Hu10
