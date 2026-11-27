@@ -25,7 +25,7 @@ So you don't choose one of the three. They are three layers, and each does a dif
 | **Harness (runtime)** | Claude Code itself | *What can the agent do?* | tools, subagents, hooks, skills loader, plan mode, compaction |
 | **Method** | Superpowers plugin | *In what order, with what discipline?* | brainstorming → plan → TDD → review → verify → finish branch |
 | **Project harness** | **You** (harness engineering) | *What does "correct" mean here?* | `CLAUDE.md`, test/lint commands, hooks that block bad actions, CI gates |
-| **Loop** | Claude Code `/goal`, ralph-loop plugin, headless `claude -p` | *How long does it keep going without me?* | "run until all plan tasks pass `make check`" |
+| **Loop / fan-out** | Claude Code `/goal`, Ultracode (dynamic workflows), ralph-loop plugin, headless `claude -p` | *How long does it keep going, and how many agents?* | "run until `./verify.sh` exits 0" |
 
 The rest of this file shows how to wire them together for daily work.
 
@@ -84,6 +84,30 @@ Honest caveats:
   ([guide](https://pasqualepillitteri.it/en/news/215/superpowers-claude-code-complete-guide)). No peer-reviewed study yet.
 - **Don't stack methodologies.** Two process frameworks (e.g. Superpowers plus a spec-kit or GSD-style plugin)
   in one context perform worse than one.
+
+### 2.1 "Can't I just tell Claude 'use harness and loop engineering and all the latest agent tech'?"
+
+**No. Checked against Claude Code as of Nov 2026, a one-sentence prompt does not give you this workflow.** Here is what's built in and what isn't:
+
+| You want | Built into Claude Code? | What a one-liner actually gets you |
+|---|---|---|
+| Superpowers' skills | **No.** It's a third-party plugin; you must install it (§3.1) | Claude improvises a lookalike once, then forgets it next session |
+| Spec + plan approved by you before code | Plan mode only (a plan in chat, no spec file, no enforced gate) | Maybe a plan; it often goes straight to code |
+| Test-first (TDD), review between tasks | **No** built-in enforcement | Best effort, skipped when it's in a hurry |
+| Many agents with an adversarial verifier | **Yes: Ultracode / dynamic workflows** (v2.1.154+, toggle since v2.1.284) | But it's per-task fan-out: no human gates, no TDD, can't pause for input, and it costs a lot (one Nov 2026 test: ~4x the cost and ~2.3x the time of plain xhigh for 8 extra low-severity findings, [agentsroom](https://agentsroom.dev/blog/what-is-ultracode-in-claude-code)) |
+| Keep going until done | **Yes: `/goal`, `/loop`, ralph-loop plugin** | Only if *you* give it a checkable condition and a cap |
+| Locked target, Stop gate, NEEDS-HUMAN | **No.** Hooks exist, but Claude doesn't set them up unless asked | Nothing, because these must be files in your repo |
+
+Why the one-liner falls short:
+1. **Instructions aren't enforcement.** "Use TDD" is a wish. A Stop hook that runs `verify.sh` is a guarantee.
+2. **A sentence doesn't persist.** It's gone after `/clear`, compaction or the next session. Plugins, `CLAUDE.md` and hooks reload every time.
+3. **"Latest agent tech" is ambiguous.** Claude has to guess which of Ultracode, subagents, agent teams, `/goal` and plan mode you mean. The more expensive ones (Ultracode) are wrong for most daily tasks.
+4. **Nobody has shown it works.** No source found (2025–2026) claims a single prompt reproduces Superpowers' gates. Sources describing Ultracode don't claim it either.
+
+**The good news is that you don't have to *learn* Superpowers.** This file is your one sentence. Give Claude this file
+plus *"use this md file for my project, building …"*. Claude checks that the plugin, `verify.sh` and hooks are set up,
+proposes what's missing, and runs the right track. You only need to know the **three gates** (approve spec, approve
+plan, review PR) and what to do when **`NEEDS-HUMAN.md`** appears. Everything else is automated.
 
 ---
 
@@ -227,6 +251,7 @@ Pick the lightest loop that fits:
 | Need | Use | Example |
 |---|---|---|
 | Keep working in this session until done | **`/goal`**: a separate evaluator checks the condition after every turn | `/goal All tasks in docs/superpowers/plans/<plan>.md are checked off and make check passes` |
+| One big, parallelizable task (wide refactor, repo-wide audit) and you accept the cost | **Ultracode**: say `ultracode` in the prompt, or `/effort ultracode` | `ultracode: execute tasks 4–9 of <plan>.md in parallel; verifier must run ./verify.sh` |
 | Fresh context every iteration (long plans, >100K tokens of work) | **ralph-loop** plugin, or headless `claude -p` in a shell loop | `/ralph-loop "Do the next unchecked task in <plan>.md using executing-plans; mark it done" --max-iterations 20 --completion-promise "PLAN COMPLETE"` |
 | Recurring check, not iteration | **`/loop`** or a **scheduled cloud task** | "every morning: run the full suite on main, open an issue if red" |
 
@@ -256,6 +281,7 @@ When the user gives you this file with a project description:
    unattended), or D (small edit). State the track in one line. The user can override it.
 3. **Track A/B**: follow the Superpowers skills in order. Stop at the three gates (spec, plan, PR) for explicit approval.
    Default to **inline executing-plans**. Use subagent-driven-development only if `CLAUDE.md` or the user says so.
+   Don't turn on Ultracode / dynamic workflows unless the user asks or the task is large and parallelizable. Then say the cost first.
 4. **Track C**: propose the exact `/goal` or `/ralph-loop` command with a cap and a machine-checkable condition
    pointing at the plan file. Don't start an uncapped loop.
 5. **Always**: never claim done without running `./verify.sh` and quoting its result. Never edit the locked target.
@@ -277,6 +303,25 @@ Did the agent make the same mistake twice? → Add a CLAUDE.md rule, test or hoo
 
 ---
 
+## Related videos (2026)
+
+Korean:
+- 피드백 루프, 어떻게 만들까? SDD가 만들어 주나, 하네스와는 뭐가 다른가: https://www.youtube.com/watch?v=hvrdnm0Hu10 (the basis for §1.1 and §3.3)
+- 하네스, 루프, 그래프 — AI 코딩 용어가 6주마다 바뀌는 진짜 이유: https://www.youtube.com/watch?v=HxdYO_vo32A
+- 하네스·루프·그래프 엔지니어링?: https://www.youtube.com/watch?v=uKbw2Lfn3wI
+- 하네스 엔지니어링, 9달러 vs 200달러의 비밀 (클로드 코드): https://www.youtube.com/watch?v=6cr4PeilKJk
+- 클로드 코드 공식 플러그인 4개로 토큰 절약 끝 (하네스 실무 포함): https://www.youtube.com/watch?v=L94yAQR9VvA
+- 하네스 엔지니어링 — gstack으로 Claude Code와 Codex에게 제대로 일시키는 법: https://www.youtube.com/watch?v=PeRUUFHvKq0
+
+English:
+- Harness engineering beyond skills: Using sensors to keep your coding agent in check: https://www.youtube.com/watch?v=uLWOLmeHOSE
+- Why Your Coding Agents Need a Harness, Not a Prompt: https://www.youtube.com/watch?v=bUtAGFXPc3A
+- Harness Engineering: What Separates Top Agentic Engineers Right Now: https://www.youtube.com/watch?v=ulNsa0sD8N0
+- How to Work with AI Coding Agents: Spec-Driven Development, Context and Loop Engineering, Workflows: https://www.youtube.com/watch?v=VUJxJGpaDEs
+- Why AI Coding Agents Fail on Real Codebases (Sheena O'Connell on spec-driven development): https://www.youtube.com/watch?v=VlCeTC6N9N8
+- The Claude Code Plugin Every Developer Must Learn (Superpowers): https://www.youtube.com/watch?v=yEzzBxhkUw4
+- Claude Code Superpowers Review: Enforcing TDD and Git Worktrees on AI Agents: https://www.youtube.com/watch?v=kszFdj9_jV8
+
 ## Sources (2025–2026)
 
 - Superpowers repo and release notes, v5.0 to v7.0.2 (Mar–Nov 2026): https://github.com/obra/superpowers, https://raw.githubusercontent.com/obra/superpowers/HEAD/RELEASE-NOTES.md
@@ -289,5 +334,7 @@ Did the agent make the same mistake twice? → Add a CLAUDE.md rule, test or hoo
 - Agent loops: Ralph, /loop, /goal, headless (reviewed Oct 2026): https://agentatlas.dev/guides/agent-loops-ralph-loop-ai-coding-agents/
 - "From Ralph Wiggum to /loop" (Mar/Jun 2026): https://paddo.dev/blog/claude-code-loop-ralph-wiggum-evolution/
 - Loop engineering guide (Aug/Oct 2026): https://blakecrosley.com/guides/loop-engineering
+- Ultracode / dynamic workflows (Sep–Nov 2026): https://claudefa.st/blog/guide/development/ultracode, https://agentsroom.dev/blog/what-is-ultracode-in-claude-code
+- "Claude Code Superpowers: What It Is and Whether It's Worth It" (Sep 2026): https://agentskit.co/blog/claude-code-superpowers
 - Claude Code hooks reference (PreToolUse / Stop, exit code 2, `decision: "block"`): https://code.claude.com/docs/en/hooks
 - Video (Korean): "피드백 루프, 어떻게 만들까? SDD가 만들어 주나, 하네스와는 뭐가 다른가" (feedback loop = target/sensor/compare/act; SDD sets the target, harness builds it): https://www.youtube.com/watch?v=hvrdnm0Hu10
