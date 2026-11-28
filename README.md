@@ -7,7 +7,7 @@ Learn the new things you need for coding with AI assistants. This repo is used i
 2. **Use:** each file in [`postings/`](postings/) is a workflow you hand to Claude Code in one sentence:
    *"Use this md file for my project, building …"*. Claude follows it, so you don't have to remember the details.
 
-_Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2). Added Posting 02 and lessons L8–L10 on agent security._
+_Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2, gstack 1.104, pstack 0.15.48). Added Posting 03 and lesson L11 on deciding what's worth building, and Posting 04 and lessons L12–L13 on proof and metric loops (L2 and L4 updated)._
 
 ---
 
@@ -17,6 +17,8 @@ _Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2). Added Po
 |---|---|---|---|
 | 01 | [Daily coding with Superpowers + Claude Code + your own harness](postings/01-superpowers-daily-workflow.md) | A daily workflow: spec → plan → test-first build → review → verified "done", with hooks that lock the tests and a stop for when Claude gets stuck | L1–L7 |
 | 02 | [Secure agent workstation: run Claude Code without handing over your keys](postings/02-secure-agent-workstation.md) | Sandbox with your credentials hidden, secrets in three tiers, hooks that block made-up packages and edits to the agent's own config, a plugin vetting checklist, session types, and a 10-minute self-test | L2, L4, L8–L10 |
+| 03 | [Business development with gstack: decide what's worth building before Claude builds it](postings/03-gstack-business-development.md) | YC-style office hours that test demand before code, a scope review, a dated kill line gstack checks for you, and a clean hand-off to the Posting 01 build | L1, L5, L11 |
+| 04 | [Rigorous product engineering with pstack: build less, prove more](postings/04-pstack-rigorous-product-engineering.md) | pstack on Claude Code: a skill that drives your real app as proof, reviews where only proven findings count, a keep-or-revert loop for improving a number, and repeated mistakes turned into checks | L1, L2, L4, L6, L12, L13 |
 
 ---
 
@@ -36,6 +38,9 @@ Start with **L1**. Everything else is a way of building or supervising it.
 | [L8](#l8-the-lethal-trifecta-and-the-rule-of-two) | The lethal trifecta and the Rule of Two | **Understand deeply** (it's L1 for security) | 15 min |
 | [L9](#l9-sandbox-permissions-and-auto-mode-three-different-layers) | Sandbox, permissions and auto mode | What each one stops and what it doesn't | 15 min |
 | [L10](#l10-secrets-and-the-supply-chain) | Secrets and the supply chain | Three tiers of secrets; how packages attack you | 15 min |
+| [L11](#l11-the-evidence-loop-validate-before-you-build) | The evidence loop: validate before you build | The evidence ladder and the kill line | 15 min |
+| [L12](#l12-proof-over-claims) | Proof over claims | The four-level proof ladder | 10 min |
+| [L13](#l13-metric-loops-hillclimbing-with-keep-or-revert) | Metric loops: hillclimbing with keep-or-revert | When a number, not pass/fail, is the target | 10 min |
 | [Example](#worked-example-starting-a-new-project-from-zero) | **Worked example:** a new project from zero, step by step | Read once, then follow | 15 min |
 
 **The short version:** you don't need to master these tools. You need to know enough to **supervise**.
@@ -106,6 +111,12 @@ model scored about 10 points apart depending on its harness ([summary](https://b
 **The one habit:** *when Claude makes the same mistake twice, don't write a longer prompt. Add a rule, a test or a hook so
 the mistake can't happen again* (Mitchell Hashimoto's framing, via [Faros](https://www.faros.ai/blog/harness-engineering)).
 
+**Updated (Nov 2026): the enforcement ladder.** pstack's `/correct` skill ranks fixes for a repeated mistake from strongest
+to weakest: (1) **architecture** (one supported way, delete the old way an agent would copy), (2) **types** so the bad
+state can't be written, or a **lint/CI check whose error names the fix**, (3) **tests** that fail when the behavior breaks,
+(4) **docs or `CLAUDE.md` last**, because nothing fails when an agent skips them. Hooks sit next to lint: a guarantee
+at the moment of the action. Pick the highest level that works (Posting 04 §4.4).
+
 **What you do:** you don't write hooks by hand. Ask Claude to set them up from Posting 01 §3.3, then **read** what it
 wrote, so you know what's blocked and why.
 
@@ -160,13 +171,15 @@ walk away. Only start one **after** you've approved a plan and `verify.sh` exist
 | ralph-loop plugin / `claude -p` in a shell loop | Restarts with a fresh context each round, reading the plan file as its memory | Long plans that would fill up one session |
 | `/loop` or scheduled tasks | Re-runs a prompt on a clock | Recurring checks ("run the full suite every morning"), not building |
 | **Ultracode** (`ultracode` in the prompt, or `/effort ultracode`) | Claude writes a workflow that runs many subagents in parallel with a verifier | Big, parallel jobs only. Expensive (one test: about 4x the cost), no human approval points |
+| **Hillclimb** (pstack, Posting 04) | Improves one *number*: one change, measure, keep or revert, log every try | "Make it faster/smaller/more accurate" with a frozen metric and a target (L13) |
 
 **Safety rules (always):**
 1. **Cap it:** `--max-iterations`, `--max-turns` or a budget. Unlimited is the default.
 2. **The condition is the sensor:** say "`./verify.sh` exits 0", not "the feature works".
 3. **Branch only.** The loop never touches `main`.
 4. **Same failure 3 times → stop and call a human.**
-5. **No loop with untrusted input and real secrets together.** A loop removes the human who would notice a hijack.
+5. **Never a duration.** "Work on it for 4 hours" isn't a condition. Give a check that passes or fails, or a metric with a target.
+6. **No loop with untrusted input and real secrets together.** A loop removes the human who would notice a hijack.
    Run loops in a normal build session, not one that read GitHub issues, error reports or web pages (L8).
 
 **Read more:** [Agent loops: Ralph, /loop, /goal, headless](https://agentatlas.dev/guides/agent-loops-ralph-loop-ai-coding-agents/) ·
@@ -430,6 +443,117 @@ was published 3 days ago. What do you do?
 
 ---
 
+### L11. The evidence loop: validate before you build
+
+**The problem.** With an agent, a working, tested product takes days instead of months. That removes the old brake.
+You can now build the wrong thing fast and well, and a cheap build doesn't make anyone want it. Worse, the assistant you'd ask "is this a good idea?" is a yes-man: a Stanford
+study found models **affirm users about 50% more than people do** ([arXiv 2510.01395, Oct 2025](https://arxiv.org/abs/2510.01395)).
+
+**The idea.** Run the L1 feedback loop on the business, with a different sensor:
+
+| Part | Code (L1) | Business |
+|---|---|---|
+| Target | Tests pass | *"By Dec 15, 3 of 10 clinics I demo to pay $49"* |
+| Sensor | `./verify.sh` | What people **do**: pay, come back, complain when it breaks |
+| Compare outside the doer | Stop hook | A **kill line** written before you act and checked on the date |
+| Action | Edit code | The cheapest experiment: talk to N buyers, send a payment link, deliver by hand, ship a tiny wedge |
+
+**The evidence ladder** (strongest first): prepay > signed contract > paid pilot > priced letter of intent >
+unpriced LOI > praise. Waitlists, likes and "that's interesting" are not demand. Your real competitor is the
+**status quo**: the spreadsheet-and-email workaround people already live with.
+
+**What you do:** before a new product or a big feature, run gstack's `/office-hours` (Posting 03). Answer its six
+forcing questions (demand, status quo, the named human, the narrowest wedge, what surprised you watching a user,
+future-fit) and leave with a design doc or memo that ends in **KILL/CONTINUE: by <date>, if <behavior or money
+test> isn't true, change direction.** Then build the wedge with Posting 01.
+
+**Why a skill and not a chat?** A skill asks first, pushes twice on vague answers, is forbidden to hedge, and writes
+the decision down with a date. Note what it doesn't do: gstack's own test found it doesn't make Claude fix more
+bugs, and persona lines like "you are a CEO" don't make models more accurate. The value is the questions and the
+gate, not the role-play.
+
+**Check yourself:** you have 400 waitlist signups and three friends who say they'd "definitely use it". Office hours
+asks for your strongest demand evidence. What do you answer, and what's your next action?
+<details><summary>Answer</summary>Honestly: no demand evidence yet. Signups and compliments are at the bottom of the ladder. Next action is a memo, not code: for example, "send a $29 payment link to 20 people from the waitlist by Friday; KILL/CONTINUE: if fewer than 3 pay by Dec 15, change direction."</details>
+
+**Read more:** [gstack /office-hours skill](https://github.com/garrytan/gstack/tree/main/office-hours) ·
+[gstack's own eval: no gain on fix rate](https://github.com/garrytan/gstack-evals/blob/main/wiki/board/2026-11-19-geva-540-skill-pack-h2h-results/README.md) ·
+[Sycophantic AI (Stanford)](https://arxiv.org/abs/2510.01395) ·
+[Founders asking a helpful machine to judge their ideas (Inc.)](https://www.inc.com/diana-bocco/founders-ai-prompting-business-ideas-confirmation-bias/91394909)
+
+---
+
+### L12. Proof over claims
+
+**The problem.** An agent's report always *sounds* right. "Fixed, verified, no side effects" reads the same whether
+it's true or not. Reviews have the same problem: an AI reviewer lists ten plausible risks, and you can't tell which
+are real. In one developer's side-by-side test, pstack's proof steps caught **three false claims** the agent had made
+on a single task.
+
+**The idea: the proof ladder** (from pstack's `/blast-radius` skill). For every claim, ask how far down it got:
+
+| Level | Evidence | Trust it? |
+|---|---|---|
+| 1 | The agent said so | No |
+| 2 | It pointed at a real `file:line` | Weak |
+| 3 | It walked the failure case step by step | Medium |
+| 4 | **It ran something**: a failing-then-passing test, a repro script, a measurement, a recorded drive of the real app | Yes |
+
+Three habits that keep claims at level 4:
+- **Verify the real thing, not a proxy.** "It compiles" and "unit tests pass" don't prove a user can sign up. A
+  verification skill that launches the app and drives it like a user does (Posting 04 §4.1).
+- **Only proven review findings count.** `/pstack:interrogate` keeps a finding only if it comes with the command and
+  the wrong output. Style opinions and "might break someday" are dropped.
+- **Smaller diffs are easier to prove.** One sentence, *"make the smallest change that fixes the issue, and nothing
+  more"*, halved fix size in gstack's Nov 2026 test with about the same fix rate.
+
+**What you do:** when Claude says "done", "safe", "faster" or "fixed", ask *"which level is that? Show me the command
+and output."* Put the level-4 rule in `CLAUDE.md` (Posting 04 §3.3).
+
+**Check yourself:** Claude says "I changed the date parser; the blast radius is small since only `reports.ts` calls
+it." Which level is that, and how do you get it to 4?
+<details><summary>Answer</summary>Level 1, maybe 2 if it names the line. Ask it to prove the fact the safety depends on: search all callers including dynamic imports, then run the report and the other callers' tests (or a quick script) with the new parser and show the output.</details>
+
+**Read more:** [pstack skills](https://github.com/cursor/plugins/tree/main/pstack) ·
+[gstack evals: the "smallest change" sentence](https://github.com/garrytan/gstack-evals/blob/main/wiki/board/2026-11-20-geva-565-skill-pack-h2h-correction/README.md) ·
+[What is poteto-mode (Flavio Copes)](https://flaviocopes.com/poteto-mode/)
+
+---
+
+### L13. Metric loops: hillclimbing with keep-or-revert
+
+**The problem.** `/goal` (L4) works when "done" is pass/fail. Many product goals are a **number**: page load time,
+bundle size, cost per request, search accuracy. Ask an agent to "make it faster" and you get a pile of changes, some
+helpful, some not, all tangled together, with a speedup nobody measured properly.
+
+**The idea.** Treat it as an experiment loop, the pattern behind Andrej Karpathy's 2026 **autoresearch** (two days,
+about 700 experiments, 20 kept improvements, an 11% training speedup;
+[Fortune](https://fortune.com/2026/03/17/andrej-karpathy-loop-autonomous-ai-agents-future/)):
+
+1. **Freeze the ruler.** One command prints the metric (median of several runs) and an error count. Prove it can tell
+   slow from fast, then don't touch it. Record the baseline.
+2. **One change per try**, each with a reason ("defer X off the startup path because it blocks first paint").
+3. **Keep or revert.** Keep only if the number beats the noise *and* the regression tests stay green. Otherwise revert
+   completely. Never stack untested changes.
+4. **Log every try** (kept or reverted) in a `decision.tsv`, so you can audit the run.
+5. **Stop on a predicate** with a target and a minimum number of tries ("≥50% faster and at least 10 attempts"), so a
+   lucky first win doesn't end it and the agent can't lower the bar.
+
+**How it fits L1:** same loop, but the sensor returns a number and the compare step is "better than before by more
+than the noise?". The frozen ruler is the locked target: if the agent could edit the benchmark, it would.
+
+**What you do:** `/pstack:poteto-mode hillclimb <metric>: <target>` in a branch (Posting 04 §4.3). Read the
+`decision.tsv` afterwards and run `/pstack:benchmark-checklist` on the final number before you believe it.
+
+**Check yourself:** the agent reports "38% faster!" from one run on your laptop, after five changes made together.
+What's wrong?
+<details><summary>Answer</summary>One run is noise; five changes together means you can't tell which helped or hurt; and there's no word on whether the regression tests still pass. Re-run with a frozen benchmark (median of N), one change per try, keep-or-revert, and a log.</details>
+
+**Read more:** [The autoresearch pattern](https://dgallitelli.github.io/blog/autoresearch-week/day1-the-autoresearch-pattern/) ·
+[pstack hillclimb playbook](https://github.com/cursor/plugins/blob/main/pstack/skills/poteto-mode/playbooks/hillclimb.md)
+
+---
+
 ## Worked example: starting a new project from zero
 
 Say you start a new **habit-tracker web app** (TypeScript, a small API plus a web UI). Here is how every lesson applies,
@@ -438,6 +562,12 @@ in order. You type about ten short messages. Claude does the rest.
 **Day 0, once per machine: secure the workstation (≈1 hour).** Give Claude
 [Posting 02](postings/02-secure-agent-workstation.md) and say *"Use this md file to secure my machine."* Approve the
 sandbox and credential settings, then run its self-test. Every later project inherits this (L8–L10).
+
+**Day 0, per idea: is it worth building? (≈45 min).** Give Claude [Posting 03](postings/03-gstack-business-development.md) and run
+`/office-hours`. Say you've talked to four people who track habits in a spreadsheet and none has paid for an app.
+It pushes back, picks the narrowest wedge ("a streak reminder for one habit, $3/month"), and writes
+`docs/designs/habit-tracker.md` ending in *KILL/CONTINUE: by Jan 31, if 10 people haven't paid, change direction.*
+The build below starts from that doc (L11).
 
 **Day 1, morning: kickoff and harness (≈20 min)**
 
@@ -468,6 +598,11 @@ sandbox and credential settings, then run its self-test. Every later project inh
 | 13 | *"Explain this diff. What are you least sure about?"* plus `/code-review` | A second opinion from a fresh context | L6 |
 | 14 | Click through the feature yourself once, then merge | Done means verified *and* checked by you | L6 |
 | 15 | You noticed Claude used local time instead of the user's time zone. *"Add a CLAUDE.md rule and a test so dates always use the user's time zone."* | The mistake can't happen again | L2 |
+
+**Day 1, once per project (optional, ≈30 min): build the proof.** With [Posting 04](postings/04-pstack-rigorous-product-engineering.md)
+and pstack installed, run `/pstack:create-verification-skill`. It writes `.claude/skills/verify-habit-tracker/` with how to
+launch the app, sign in a test user, check off a habit and screenshot the streak. Then: *"Add the check-off journey to
+`verify.sh`."* Now the Stop gate proves the feature in the real app, not only in unit tests (L12).
 
 **Day 2: next feature and a bug**
 
@@ -508,6 +643,16 @@ sandbox and credential settings, then run its self-test. Every later project inh
 - **Slopsquatting:** registering a package name that AI models tend to invent, so that installs of the made-up name get malware.
 - **Install script:** code a package runs automatically when it's installed. The main way npm worms spread.
 - **Minimum release age:** a package manager setting that refuses versions published less than N days ago.
+- **Office hours (`/office-hours`):** gstack's skill that interviews you like a YC partner about demand before any code, and writes a design doc or decision memo.
+- **Kill line (KILL/CONTINUE):** a dated test written before you build: "by <date>, if <behavior or money test> isn't true, change direction."
+- **Wedge:** the smallest version of a product that one specific person would pay for this week.
+- **Evidence ladder:** how much a demand signal counts: prepay > signed contract > paid pilot > priced LOI > unpriced LOI > praise.
+- **Sycophancy:** a model agreeing with and flattering the user instead of judging honestly.
+- **pstack / poteto-mode:** Lauren Tan's plugin (Cursor, with an official Claude Code version) of proof-first engineering skills; `/pstack:poteto-mode` picks a playbook for the task.
+- **Verification skill:** a project skill that launches your app and drives it like a user, with a feature map of journeys and the evidence each one must produce.
+- **Proof ladder:** said so → pointed at the line → walked the case → ran it. Only the last counts as proof.
+- **Hillclimb / autoresearch loop:** improve one metric with one change per try, keep or revert, and a log of every try.
+- **Enforcement ladder:** fix a repeated mistake at the highest level that works: architecture, types or lint, tests, docs last.
 - **MCP server:** a plugin that gives the agent new tools (GitHub, a browser, a database). Code running with your permissions; its output is untrusted input.
 
 ---
