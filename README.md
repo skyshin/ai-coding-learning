@@ -6,8 +6,10 @@ Learn the new things you need for coding with AI assistants. This repo is used i
    actually do with it, and links to more reading.
 2. **Use:** each file in [`postings/`](postings/) is a workflow you hand to Claude Code in one sentence:
    *"Use this md file for my project, building …"*. Claude follows it, so you don't have to remember the details.
+3. **Check the evidence:** [`research/`](research/) holds the research notes behind a posting: sources, numbers and the
+   step-by-step reasoning, for when you want to know *why*.
 
-_Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2, gstack 1.104, pstack 0.15.48). Added Posting 03 and lesson L11 on deciding what's worth building, and Posting 04 and lessons L12–L13 on proof and metric loops (L2 and L4 updated)._
+_Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2, gstack 1.104, pstack 0.15.48). Added Posting 03 and lesson L11 on deciding what's worth building, Posting 04 and lessons L12–L13 on proof and metric loops (L2 and L4 updated), and Posting 05, the [must-have project files summary](#must-have-project-files-by-project-size) and lesson L14 on which docs an agent needs at each project size (L2 and the worked example updated for `AGENTS.md`)._
 
 ---
 
@@ -19,6 +21,57 @@ _Last updated: November 2026 (Claude Code 2.1.3xx, Superpowers v7.0.2, gstack 1.
 | 02 | [Secure agent workstation: run Claude Code without handing over your keys](postings/02-secure-agent-workstation.md) | Sandbox with your credentials hidden, secrets in three tiers, hooks that block made-up packages and edits to the agent's own config, a plugin vetting checklist, session types, and a 10-minute self-test | L2, L4, L8–L10 |
 | 03 | [Business development with gstack: decide what's worth building before Claude builds it](postings/03-gstack-business-development.md) | YC-style office hours that test demand before code, a scope review, a dated kill line gstack checks for you, and a clean hand-off to the Posting 01 build | L1, L5, L11 |
 | 04 | [Rigorous product engineering with pstack: build less, prove more](postings/04-pstack-rigorous-product-engineering.md) | pstack on Claude Code: a skill that drives your real app as proof, reviews where only proven findings count, a keep-or-revert loop for improving a number, and repeated mistakes turned into checks | L1, L2, L4, L6, L12, L13 |
+| 05 | [Must-have project files: the smallest set of docs an agent needs, by project size](postings/05-must-have-project-files.md) | Which files a small, medium or large project needs (PRD, AGENTS.md, architecture, glossary, ADRs, security, runbook, harness), a template for each, what to skip because it duplicates something, and which tools fit each size. Evidence: [research notes](research/05-must-have-project-files-research.md) | L1, L2, L14 |
+
+---
+
+## Must-have project files by project size
+
+**The short answer:** every project, even a 3-page web app, needs **four** things: a `README.md`, an `AGENTS.md` (with a
+one-line `CLAUDE.md` that imports it), a one-page `PRD.md`, and a harness (`verify.sh` + locked acceptance tests +
+hooks). Bigger or riskier projects add files **only when a trigger fires**. Each file answers one question the code
+can't, and **no fact lives in two files**. Details and a template for every file:
+[Posting 05](postings/05-must-have-project-files.md). Evidence and step-by-step reasoning:
+[research notes](research/05-must-have-project-files-research.md). The idea behind it: [L14](#l14-one-fact-one-home-the-files-an-agent-needs).
+
+**Pick your size** ([how](postings/05-must-have-project-files.md#21-pick-your-tier-2-minutes)): **S** = one person, one
+deployable, low stakes · **M** = several modules or integrations, 2–5 people or parallel agents · **L** = several
+services or teams, long agent loops, or regulated. **Move up one size** if it handles money, stores sensitive personal
+data, is regulated, has more than one deployable, or has several agents or people working in parallel.
+
+| File | Small | Medium | Large | Answers | Details |
+|---|:-:|:-:|:-:|---|---|
+| `README.md` | ● + *Operate* section | ● | ● | What is it, how to run, test, operate? | [§3.1](postings/05-must-have-project-files.md#31-readmemd-for-humans) |
+| `AGENTS.md` + `CLAUDE.md` shim | ● | ● | ● | What must an agent know that the code can't tell it? | [§3.2](postings/05-must-have-project-files.md#32-agentsmd-and-a-one-line-claudemd) |
+| `docs/PRD.md` | ● 1 page | ● | ● | What, for whom, why, what's out of scope? | [§3.3](postings/05-must-have-project-files.md#33-docsprdmd-what-and-why) |
+| Harness: `verify.sh`, `tests/acceptance/`, hooks | ● | ● | ● + required CI | How do we prove it's done? | [§3.4](postings/05-must-have-project-files.md#34-verifysh-and-the-harness) · [Posting 01 §3.3](postings/01-superpowers-daily-workflow.md) |
+| Feature specs + plans (SDD, via Superpowers) | ◐ risky features | ● | ● | How will this feature work? | [§3.5](postings/05-must-have-project-files.md#35-feature-specs-and-plans-sdd) |
+| `ARCHITECTURE.md` | — | ● | ● | Where do things live; what must never be crossed? | [§3.6](postings/05-must-have-project-files.md#36-architecturemd) |
+| `docs/adr/` (decision records) | — | ◐ | ● | Why is it built this way? | [§3.7](postings/05-must-have-project-files.md#37-docsadr-decision-records) |
+| `GLOSSARY.md` (the "ontology") | — | ◐ domain-heavy | ● + map | What exactly do our words mean? | [§3.8](postings/05-must-have-project-files.md#38-glossarymd-the-ontology-done-simply) |
+| `SECURITY.md` / `THREAT_MODEL.md` | ◐ 5 lines in AGENTS.md | ● | ● both | What must we protect, and how? | [§3.9](postings/05-must-have-project-files.md#39-securitymd-and-threat_modelmd) |
+| `RUNBOOK.md` | ◐ in README | ● | ● | How do we deploy, roll back, recover? | [§3.10](postings/05-must-have-project-files.md#310-runbookmd) |
+| `.claude/rules/` (per-folder rules) | — | ◐ | ● | Rules for one area only | [§3.11](postings/05-must-have-project-files.md#311-clauderules-for-one-area-only) |
+| Verification skill (pstack) | — | ● | ● | How does an agent prove it in the real app? | [§3.12](postings/05-must-have-project-files.md#312-the-verification-skill-pstack) |
+| `docs/progress.md` | during long loops only | ← | ← | Where did the last session stop? | [§3.13](postings/05-must-have-project-files.md#313-docsprogressmd-only-during-long-loops) |
+
+● must-have · ◐ when its trigger fires · — skip at this size
+
+**Tools, not files** ([details](postings/05-must-have-project-files.md#4-tools-not-files-what-to-use-at-each-size)):
+
+| Tool | Small | Medium | Large |
+|---|---|---|---|
+| Secure workstation ([Posting 02](postings/02-secure-agent-workstation.md)) | ● | ● | ● |
+| Superpowers ([Posting 01](postings/01-superpowers-daily-workflow.md)) | only for auth, payments, data features | every feature | every feature |
+| Loops (L4) | `/goal` | `/goal`, fresh-context loops for long plans | both, with `progress.md` |
+| gstack office hours ([Posting 03](postings/03-gstack-business-development.md)), output becomes the PRD | if it's a business | if it's a business | new product lines |
+| pstack proof tools ([Posting 04](postings/04-pstack-rigorous-product-engineering.md)) | `/correct` only | verification skill, `/interrogate` on risky PRs | all, plus hillclimb for metrics |
+
+**Don't create these** (each duplicates a file above): `SDD.md` or `constitution.md` (SDD is a process; specs are
+per feature) · `Ontology.md` in OWL/RDF (a plain `GLOSSARY.md` is what works for agents) · `DESIGN.md` (architecture +
+the feature spec) · content in both `CLAUDE.md` and `AGENTS.md` · a second PRD after gstack · `TODO.md`/`PLANS.md`
+(the plan file) · an `/init`-generated `CLAUDE.md` nobody edited (it makes agents slightly *worse*).
+[Full list](postings/05-must-have-project-files.md#files-you-dont-need-they-duplicate-something-above).
 
 ---
 
@@ -41,6 +94,7 @@ Start with **L1**. Everything else is a way of building or supervising it.
 | [L11](#l11-the-evidence-loop-validate-before-you-build) | The evidence loop: validate before you build | The evidence ladder and the kill line | 15 min |
 | [L12](#l12-proof-over-claims) | Proof over claims | The four-level proof ladder | 10 min |
 | [L13](#l13-metric-loops-hillclimbing-with-keep-or-revert) | Metric loops: hillclimbing with keep-or-revert | When a number, not pass/fail, is the target | 10 min |
+| [L14](#l14-one-fact-one-home-the-files-an-agent-needs) | One fact, one home: the files an agent needs | Which files at which size; why fewer is better | 15 min |
 | [Example](#worked-example-starting-a-new-project-from-zero) | **Worked example:** a new project from zero, step by step | Read once, then follow | 15 min |
 
 **The short version:** you don't need to master these tools. You need to know enough to **supervise**.
@@ -116,6 +170,11 @@ to weakest: (1) **architecture** (one supported way, delete the old way an agent
 state can't be written, or a **lint/CI check whose error names the fix**, (3) **tests** that fail when the behavior breaks,
 (4) **docs or `CLAUDE.md` last**, because nothing fails when an agent skips them. Hooks sit next to lint: a guarantee
 at the moment of the action. Pick the highest level that works (Posting 04 §4.4).
+
+**Updated (Nov 2026): `CLAUDE.md` and `AGENTS.md`.** Claude Code now also reads `AGENTS.md`, the instruction file
+other agents use, but only when there's no `CLAUDE.md`. To avoid two copies, put the content in `AGENTS.md` and make
+`CLAUDE.md` a one-line `@AGENTS.md` import plus Claude-only notes. Wherever this README says "`CLAUDE.md` rule", that
+content can live in `AGENTS.md` (L14, Posting 05 §3.2).
 
 **What you do:** you don't write hooks by hand. Ask Claude to set them up from Posting 01 §3.3, then **read** what it
 wrote, so you know what's blocked and why.
@@ -554,6 +613,53 @@ What's wrong?
 
 ---
 
+### L14. One fact, one home: the files an agent needs
+
+**The problem.** An agent starts every session knowing nothing about your project except what's in the repo. So it's
+tempting to give it everything: a PRD, an SDD file, an ontology, design docs, a big `CLAUDE.md`, a copy in
+`AGENTS.md`... Then two things go wrong. **More context makes agents worse**, not better (L5). And **copies drift**:
+`CLAUDE.md` says one thing, `AGENTS.md` another, and the agent follows whichever it read.
+
+**The evidence.** A 2026 ETH Zurich study ([arXiv 2602.11988](https://arxiv.org/html/2602.11988)) tested coding agents,
+including Claude Code, with and without repo context files. Typical files **didn't raise success rates and raised cost
+by over 20%**. Files an LLM generated by itself made results slightly **worse**. Short, human-written files with things
+the agent couldn't learn from the code helped a little. "Repository overviews... are not helpful." Claude Code's own
+docs give the same test for every line: *"Could Claude find this by reading the code? Would it actually go and look?"*
+
+**The idea: five rules** ([Posting 05 §1.1](postings/05-must-have-project-files.md#11-five-rules-that-decide-every-file))
+1. **Only what the code can't say:** decisions, rules, domain words, exact commands, intent. Not directory trees or overviews.
+2. **One fact, one home.** Every fact lives in one file; others link to it.
+3. **Never-rules are checks, not prose.** The doc explains; a test, hook or CI check enforces (L2).
+4. **Add a file when its trigger fires**, not on day 1 (a second name for one concept → glossary; a hard-to-reverse
+   decision → ADR; first deploy → runbook).
+5. **A human reviews every doc an agent drafts.**
+
+**Each file answers one question.** README: *how do I run it?* · AGENTS.md: *what must the agent know?* · PRD: *what
+and why?* · spec: *how does this feature work?* · ARCHITECTURE: *where are the boundaries?* · ADR: *why this way?* ·
+GLOSSARY: *what do our words mean?* · SECURITY: *what do we protect?* · RUNBOOK: *how do we recover?* · verify.sh: *is
+it done?* Two files answering the same question is a duplication to remove.
+
+**`CLAUDE.md` or `AGENTS.md`?** Since Sep 2026 (v2.1.277) Claude Code reads `AGENTS.md`, but **only if there's no
+`CLAUDE.md`**. The setup that works everywhere: put the content in `AGENTS.md` (Codex, Cursor and Copilot read it too)
+and make `CLAUDE.md` one line, `@AGENTS.md`, plus any Claude-only notes.
+
+**What you do:** pick your size in the [summary table](#must-have-project-files-by-project-size), give Claude
+Posting 05, and let it list what's missing. **You** write or edit the PRD and the glossary: intent is the one thing an
+agent can't supply.
+
+**Check yourself:** your 3-page booking app starts taking card payments. Which files do you add?
+<details><summary>Answer</summary>Money moves it from Small to Medium. Add <code>SECURITY.md</code> (with a short threat model),
+<code>ARCHITECTURE.md</code> (where payment code lives and what may call it), <code>RUNBOOK.md</code>, a Superpowers spec for the
+payment feature, and the pstack verification skill. Add an ADR if you make a hard-to-reverse choice (for example, which
+payment provider).</details>
+
+**Read more:** [Posting 05](postings/05-must-have-project-files.md) ·
+[research notes](research/05-must-have-project-files-research.md) ·
+[OpenAI: harness engineering ("a map, not a manual")](https://openai.com/blog/harness-engineering) ·
+[Böckeler: context engineering for coding agents](https://martinfowler.com/articles/exploring-gen-ai/context-engineering-coding-agents.html)
+
+---
+
 ## Worked example: starting a new project from zero
 
 Say you start a new **habit-tracker web app** (TypeScript, a small API plus a web UI). Here is how every lesson applies,
@@ -567,7 +673,8 @@ sandbox and credential settings, then run its self-test. Every later project inh
 `/office-hours`. Say you've talked to four people who track habits in a spreadsheet and none has paid for an app.
 It pushes back, picks the narrowest wedge ("a streak reminder for one habit, $3/month"), and writes
 `docs/designs/habit-tracker.md` ending in *KILL/CONTINUE: by Jan 31, if 10 people haven't paid, change direction.*
-The build below starts from that doc (L11).
+The build below starts from that doc (L11). Move it to `docs/PRD.md`: it *is* your PRD, so you don't write a
+second one (L14).
 
 **Day 1, morning: kickoff and harness (≈20 min)**
 
@@ -576,7 +683,7 @@ The build below starts from that doc (L11).
 | 1 | `mkdir habit-tracker && cd habit-tracker && git init && claude` | New repo, new session | L5 (fresh session) |
 | 2 | `/plugin install superpowers@claude-plugins-official` | Installs the method | L3 |
 | 3 | Copy `postings/01-superpowers-daily-workflow.md` into the repo and type: *"Use this md file for my project, building a habit tracker web app: users log daily habits and see streaks. TypeScript, simple API + web UI."* | Claude reads the posting, sees there's no harness yet, and proposes one | Postings |
-| 4 | Claude proposes the stack, `CLAUDE.md`, `verify.sh` (lint + typecheck + unit + Playwright acceptance tests), the target-lock hook, the Stop gate and the no-push-to-main hook. **You read it and say yes** | The project harness exists before any feature code | L1, L2 |
+| 4 | Claude proposes the stack, `AGENTS.md` with a one-line `CLAUDE.md` shim, `README.md`, `verify.sh` (lint + typecheck + unit + Playwright acceptance tests), the target-lock hook, the Stop gate and the no-push-to-main hook. **You read it and say yes** | The project harness exists before any feature code. Habit tracker is a **Small** project, so that's the whole file set for now; `ARCHITECTURE.md`, `SECURITY.md` and the rest wait for their triggers ([Posting 05](postings/05-must-have-project-files.md)) | L1, L2, L14 |
 | 5 | Check: `verify.sh` runs and passes on the empty skeleton (the "clean baseline") | The sensor works | L1 |
 
 **Day 1, afternoon: first feature, "log a habit and see a streak" (Track A)**
@@ -653,6 +760,12 @@ launch the app, sign in a test user, check off a habit and screenshot the streak
 - **Proof ladder:** said so → pointed at the line → walked the case → ran it. Only the last counts as proof.
 - **Hillclimb / autoresearch loop:** improve one metric with one change per try, keep or revert, and a log of every try.
 - **Enforcement ladder:** fix a repeated mistake at the highest level that works: architecture, types or lint, tests, docs last.
+- **PRD (product requirements document):** what you're building, for whom, why, how you'll measure it, and what's out of scope. Intent, not implementation.
+- **AGENTS.md:** the vendor-neutral agent instruction file. Claude Code reads it when there's no `CLAUDE.md`; use a one-line `@AGENTS.md` in `CLAUDE.md` to share it.
+- **ADR (architecture decision record):** a short file recording one hard-to-reverse decision, why it was made, and when to revisit it.
+- **Glossary / ubiquitous language:** one agreed name per domain concept, with banned synonyms, so code, tests and talk use the same words. The practical form of an "ontology" for agents.
+- **Runbook:** how to deploy, roll back, read alerts and restore backups. What makes a system operable, not just built.
+- **Project tier (S/M/L):** project size by risk and number of people or agents, which decides which files you need (Posting 05).
 - **MCP server:** a plugin that gives the agent new tools (GitHub, a browser, a database). Code running with your permissions; its output is untrusted input.
 
 ---
